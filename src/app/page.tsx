@@ -6,8 +6,9 @@ import {globalStateReducer, PlayerAction, PlayerState, GamePhase, initialState} 
 export default function Home() {
     const view = {height: 600, width: 800};
     const canvasRef = useRef<HTMLCanvasElement>(null)
-    const [image, setImage] = useState<HTMLImageElement | null>(null)
-    const [globalState, dispatchEvent] = useReducer(globalStateReducer, initialState)
+    const [slimeImage, setSlimeImage] = useState<HTMLImageElement | null>(null)
+    const [effectImage, setEffectImage] = useState<HTMLImageElement | null>(null)
+    const [globalState, dispatchEvent] = useReducer(globalStateReducer, { ...initialState, drawHandler: drawDamageEffect })
 
     function drawActions(ctx: CanvasRenderingContext2D, selectedAction: PlayerAction) {
         ctx.strokeRect(180, 400, 150, 180)
@@ -43,8 +44,19 @@ export default function Home() {
         ctx.fillText(`${playerHealth}/${playerInitialHealth}`, 510, 84)
     }
 
+    function drawDamageEffect() {
+        const canvas = canvasRef?.current
+        const ctx = canvas?.getContext('2d')!
+        const image = new Image()
+        image.src = '/effect.png'
+        image.onload = () => {
+            ctx.drawImage(image, 400 - 32, 230 - 32, 64, 64)
+        }
+        setTimeout(() => { draw()}, 100)
+    }
+
     function draw() {
-        if (!image) {
+        if (!slimeImage) {
             return
         }
 
@@ -61,7 +73,7 @@ export default function Home() {
             ctx.fillText('ゲームクリア', 250, 250)
             ctx.fillText('へいわがおとずれた', 170, 350)
         } else {
-            ctx.drawImage(image, 400 - 32, 230 - 32, 64, 64)
+            ctx.drawImage(slimeImage, 400 - 32, 230 - 32, 64, 64)
             if (globalState.playerState === PlayerState.ReadMessage) {
                 ctx.strokeRect(180, 400, 440, 180)
                 drawMessage(ctx, globalState.message!)
@@ -105,7 +117,7 @@ export default function Home() {
         const image = new Image()
         image.src = '/slime2.png'
         image.onload = () => {
-            setImage(image)
+            setSlimeImage(image)
         }
 
         return () => {
@@ -115,7 +127,7 @@ export default function Home() {
 
     useEffect(() => {
         draw();
-    }, [globalState, image])
+    }, [globalState, slimeImage])
 
     return (
         <main className={"h-screen w-screen flex justify-center items-center bg-emerald-50"}>

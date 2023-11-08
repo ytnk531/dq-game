@@ -28,6 +28,7 @@ type GlobalState = {
     gamePhase: GamePhase
     playerHealth: number
     playerInitialHealth: number
+    drawHandler: () => void
 }
 
 const PlayerPower = 100
@@ -61,6 +62,7 @@ function changeState(state: GlobalState) {
 function fight(state: GlobalState) {
     const enemyDamage = PlayerPower + Math.floor(Math.random() * PlayerPower / 10)
     state.enemyHealth = state.enemyHealth - enemyDamage
+    state.drawHandler()
     reserveMessage(state, `ゆうしゃのこうげき\nスライムに${enemyDamage}のダメージ`)
 
     if (state.enemyHealth > 0) {
@@ -97,7 +99,6 @@ export const globalStateReducer: React.Reducer<GlobalState, {type: string}> = (s
     }
     changeState(newState)
 
-    console.log(newState)
     return newState
 }
 
@@ -109,5 +110,6 @@ export const initialState : GlobalState= {
     enemyHealth: 1000,
     gamePhase: GamePhase.Playing,
     playerInitialHealth: 240,
-    playerHealth: 240
+    playerHealth: 240,
+    drawHandler: () => {}
 }
