@@ -1,103 +1,52 @@
 'use client';
 
-import React, {useEffect, useRef, useState} from "react";
-import NextImage from "next/image";
-enum Action {
-    Fight,
-    Escape,
-}
-enum ControlState {
-    selectAction,
-    readMessage,
-}
-
-enum GameState {
-    fighting,
-    destroyed,
-    cleared
-}
+import React, {useEffect, useReducer, useRef, useState} from "react";
+import {globalStateReducer, PlayerAction, PlayerState, GamePhase, initialState} from "@/app/game";
 
 export default function Home() {
-    const view = { height: 600, width: 800 };
-    const [x, setX] = useState(100);
-    const [y, setY] = useState(100);
+    const view = {height: 600, width: 800};
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const [image, setImage] = useState<HTMLImageElement | null>(null)
-    const [selectedAction, setSelectedAction] = useState(Action.Fight)
-    const [message, setMessage] = useState<string | null>(null)
-    const [e, setE] = useState<KeyboardEvent | null>(null)
-    const [controlState, setControlState] = useState(ControlState.selectAction)
-    const [enemyHealth, setEnemyHealth] = useState(5000)
-    const [gameState, setGamestate] = useState(GameState.fighting)
+    const [globalState, dispatchEvent] = useReducer(globalStateReducer, initialState)
 
-    function listenKeyDown(e: KeyboardEvent) {
-        setE(e)
-    }
-    function act() {
-        if (controlState === ControlState.selectAction) {
-            if (selectedAction === Action.Fight) {
-                const damage = 800 + Math.floor(Math.random() * 100)
-                setMessage(`スライムに${damage}のダメージ`)
-                setEnemyHealth((enemyHealth) => enemyHealth - damage)
-                if (enemyHealth <= 0) {
-                    setGamestate(GameState.destroyed)
-                }
-                setControlState(ControlState.readMessage)
-            } else {
-                setMessage('しかしにげることはできない')
-                setControlState(ControlState.readMessage)
-            }
-        } else if (controlState === ControlState.readMessage) {
-            if (message) { setMessage(null) }
-            if (gameState === GameState.destroyed) {
-                setMessage('スライムをたおした！')
-                setControlState(ControlState.readMessage)
-                setGamestate(GameState.cleared)
-            } else if (gameState === GameState.cleared) {
-                // do nothing
-            } else {
-                setControlState(ControlState.selectAction)
-            }
-        }
-    }
-
-    useEffect(() => {
-        if (!e) { return }
-
-        if (e.key === 'ArrowRight') {
-            setX((x) => x + 10);
-        }
-        if (e.key === 'ArrowLeft') {
-            setX((x) => x - 10);
-        }
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-            setSelectedAction((selectedAction) => {
-                if (selectedAction === Action.Fight) {
-                    return Action.Escape
-                } else {
-                    return Action.Fight
-                }
-            })
-        }
-        if (e.key === 'Enter') {
-            act();
-        }
-    }, [e]);
-
-    function drawActions(ctx: CanvasRenderingContext2D, selectedAction: Action) {
-        console.log('drawActions', selectedAction)
+    function drawActions(ctx: CanvasRenderingContext2D, selectedAction: PlayerAction) {
         ctx.strokeRect(180, 400, 150, 180)
-        if (selectedAction === Action.Fight) {
+        if (selectedAction === PlayerAction.Fight) {
             ctx.fillText('▶', 185, 450)
         }
         ctx.fillText('たたかう', 210, 450)
-        if (selectedAction === Action.Escape) {
+
+        if (selectedAction === PlayerAction.Escape) {
             ctx.fillText('▶', 185, 500)
         }
         ctx.fillText('にげる', 210, 500)
     }
+
+    // 長いメッセージを400px幅で改行して表示する
+    function drawMessage(ctx: CanvasRenderingContext2D, message: string) {
+        const lines = []
+        message.split('\n').forEach((line, index) => {
+            ctx.fillText(line, 200, 440 + (index * 30))
+        })
+    }
+
+    function drawPlayerHealth(ctx: CanvasRenderingContext2D, playerHealth: number, playerInitialHealth: number) {
+        ctx.strokeRect(180, 50, 440, 50)
+        if (playerHealth <= playerInitialHealth / 2) {
+            ctx.fillStyle = 'red'
+        } else {
+            ctx.fillStyle = 'green'
+        }
+        ctx.fillRect(180, 50, 440 * playerHealth / playerInitialHealth, 50)
+        ctx.fillStyle = 'white'
+        ctx.fillText('ゆうしゃ', 190, 84)
+        ctx.fillText(`${playerHealth}/${playerInitialHealth}`, 510, 84)
+    }
+
     function draw() {
-        if (!image) { return }
+        if (!image) {
+            return
+        }
 
         const canvas = canvasRef?.current
         const ctx = canvas?.getContext('2d')!
@@ -105,20 +54,48 @@ export default function Home() {
         ctx.fillStyle = 'white'
         ctx.lineWidth = 5
         ctx.font = '24px sans-serif'
-
         ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height)
-        if (gameState === GameState.cleared && controlState === ControlState.readMessage && !message) {
+
+        if (globalState.gamePhase === GamePhase.Cleared) {
             ctx.font = '50px sans-serif'
             ctx.fillText('ゲームクリア', 250, 250)
             ctx.fillText('へいわがおとずれた', 170, 350)
         } else {
             ctx.drawImage(image, 400 - 32, 230 - 32, 64, 64)
-            if (message) {
+            if (globalState.playerState === PlayerState.ReadMessage) {
                 ctx.strokeRect(180, 400, 440, 180)
-                ctx.fillText(message, 200, 440)
-            } else {
-                drawActions(ctx, selectedAction)
+                drawMessage(ctx, globalState.message!)
+            } else if (globalState.playerState === PlayerState.SelectAction) {
+                drawActions(ctx, globalState.selectedAction)
             }
+            drawPlayerHealth(ctx, globalState.playerHealth, globalState.playerInitialHealth)
+        }
+    }
+
+    function listenKeyDown(e: KeyboardEvent) {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            dispatchEvent({type: 'changeAction'})
+        }
+        if (e.key === 'Enter') {
+            dispatchEvent({type: 'confirm'})
+        }
+    }
+
+    function onRect(x: number, y: number, rect: { x: number, y: number, width: number, height: number }) {
+        return rect.x < x && x < rect.x + rect.width &&
+            rect.y < y && y < rect.y + rect.height
+    }
+
+    function handleClick(e: React.MouseEvent<HTMLCanvasElement, MouseEvent>) {
+        const rect = e.currentTarget.getBoundingClientRect()
+        const x = e.clientX - rect.left
+        const y = e.clientY - rect.top
+        console.log(x, y)
+
+        if (onRect(x, y, {x: 180, y: 400, width: 150, height: 180})) {
+            dispatchEvent({type: 'changeAction'})
+        } else {
+            dispatchEvent({type: 'confirm'})
         }
     }
 
@@ -126,8 +103,10 @@ export default function Home() {
         document.addEventListener('keydown', listenKeyDown)
         draw()
         const image = new Image()
-        image.src = '/slime.png'
-        image.onload = () => { setImage(image) }
+        image.src = '/slime2.png'
+        image.onload = () => {
+            setImage(image)
+        }
 
         return () => {
             document.removeEventListener('keydown', listenKeyDown)
@@ -136,12 +115,13 @@ export default function Home() {
 
     useEffect(() => {
         draw();
-    }, [x, y, image, selectedAction, message]);
+    }, [globalState, image])
 
-  return (
-    <main>
-      <canvas className={"bg-black"} ref={canvasRef} id="canvas" width={view.width} height={view.height}>
-      </canvas>
-    </main>
-  )
+    return (
+        <main className={"h-screen w-screen flex justify-center items-center bg-emerald-50"}>
+            <canvas className={"bg-black w-full max-w-[800px]"} ref={canvasRef} id="canvas" width={view.width}
+                    height={view.height} onClick={handleClick}>
+            </canvas>
+        </main>
+    )
 }
