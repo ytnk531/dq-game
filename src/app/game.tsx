@@ -8,6 +8,12 @@ export enum PlayerAction {
     Escape,
 }
 
+export enum PlayerActionCommand {
+    Fight,
+    Escape,
+    NextMessage
+}
+
 export enum GamePhase {
     Playing,
     Cleared,
@@ -38,12 +44,6 @@ function reserveMessage(state: GlobalState, message: string) {
     state.messages = [...state.messages, message]
 }
 
-function takeMessage(state: GlobalState): string {
-    const message = state.messages[0]
-    state.messages = state.messages.slice(1)
-
-    return message
-}
 function changeState(state: GlobalState) {
     if (state.message) {
         state.playerState = PlayerState.ReadMessage
@@ -77,6 +77,25 @@ function fight(state: GlobalState) {
         reserveMessage(state, 'ゆうしゃはしんでしまった')
     }
 }
+
+function consumeMessage(state: GlobalState){
+    const message = state.messages[0]
+    state.messages = state.messages.slice(1)
+    state.message = message
+}
+
+function executePlayerAction(command: PlayerActionCommand, state: GlobalState) {
+    if (command === PlayerActionCommand.Fight) {
+        fight(state)
+    } else if (command === PlayerActionCommand.Escape) {
+        reserveMessage(state, 'しかしにげることはできない')
+    } else if (command === PlayerActionCommand.NextMessage) {
+        // do nothing
+    }
+
+    consumeMessage(state)
+}
+
 export const globalStateReducer: React.Reducer<GlobalState, {type: string}> = (state: GlobalState, action: {type: string}) => {
     let newState = {...state}
 
@@ -85,17 +104,17 @@ export const globalStateReducer: React.Reducer<GlobalState, {type: string}> = (s
 
         newState.selectedAction = nextAction
     } else if (action.type === 'confirm') {
-        const playerAction = state.selectedAction === PlayerAction.Fight ? PlayerAction.Fight : PlayerAction.Escape
+        let command;
+
         if (state.playerState == PlayerState.ReadMessage) {
-            // do nothing
-        } else if (playerAction === PlayerAction.Fight) {
-            fight(newState)
-        } else if (playerAction === PlayerAction.Escape) {
-            reserveMessage(newState, 'しかしにげることはできない')
+            command = PlayerActionCommand.NextMessage
+        } else {
+            command  = state.selectedAction === PlayerAction.Fight ?
+                PlayerActionCommand.Fight :
+                PlayerActionCommand.Escape
         }
 
-        const message = takeMessage(newState)
-        newState.message = message
+        executePlayerAction(command, newState)
     }
     changeState(newState)
 
