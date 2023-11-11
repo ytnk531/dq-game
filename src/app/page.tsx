@@ -47,6 +47,7 @@ export default function Home() {
     function drawDamageEffect() {
         // const actx = new AudioContext();
         const audioElement = new Audio('/attack.mp3')
+        audioElement.volume = 0.1
         audioElement.play()
         const canvas = canvasRef?.current
         const ctx = canvas?.getContext('2d')!
